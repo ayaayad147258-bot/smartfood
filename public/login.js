@@ -65,7 +65,7 @@ async function handleLogin() {
         }
     } catch (error) {
         console.error('Login error:', error);
-        alert('حدث خطأ أثناء تسجيل الدخول. تأكد من الاتصال بالإنترنت.');
+        alert('خطأ: ' + error.message);
     } finally {
         loginBtn.disabled = false;
         loginBtn.innerText = originalText;

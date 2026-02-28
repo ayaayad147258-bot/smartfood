@@ -46,9 +46,9 @@ export const Login: React.FC<LoginProps> = ({ isRtl, onLogin }) => {
             } else {
                 setError(isRtl ? 'بيانات الدخول غير صحيحة' : 'Invalid credentials');
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error('Login error:', err);
-            setError(isRtl ? 'حدث خطأ في الاتصال بقاعدة البيانات' : 'Database connection error');
+            setError(err.message || (isRtl ? 'حدث خطأ في الاتصال بقاعدة البيانات' : 'Database connection error'));
         } finally {
             setIsLoading(false);
         }
