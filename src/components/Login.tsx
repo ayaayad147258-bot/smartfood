@@ -28,23 +28,24 @@ export const Login: React.FC<LoginProps> = ({ isRtl, onLogin }) => {
             const { collectionGroup } = await import('firebase/firestore');
             const q = query(
                 collectionGroup(db, 'users'),
-                where('username', '==', username),
-                where('password', '==', password)
+                where('username', '==', username)
             );
             const querySnapshot = await getDocs(q);
 
             if (!querySnapshot.empty) {
-                const userDoc = querySnapshot.docs[0];
-                const userData = userDoc.data();
-                // restaurantId comes from the user's data field OR from the parent doc path
-                // Path: restaurants/{restaurantId}/users/{userId}
-                const pathSegments = userDoc.ref.path.split('/');
-                // pathSegments: ['restaurants', '{restaurantId}', 'users', '{userId}']
-                const restaurantId = userData.restaurantId || pathSegments[1];
-                const user = { id: userDoc.id, ...userData, restaurantId };
-                onLogin(user);
+                const userDoc = querySnapshot.docs.find(d => d.data().password === password);
+
+                if (userDoc) {
+                    const userData = userDoc.data();
+                    const pathSegments = userDoc.ref.path.split('/');
+                    const restaurantId = userData.restaurantId || pathSegments[1];
+                    const user = { id: userDoc.id, ...userData, restaurantId };
+                    onLogin(user);
+                } else {
+                    setError(isRtl ? 'بيانات الدخول غير صحيحة (تحقق من كلمة المرور)' : 'Invalid credentials (check password)');
+                }
             } else {
-                setError(isRtl ? 'بيانات الدخول غير صحيحة' : 'Invalid credentials');
+                setError(isRtl ? 'اسم المستخدم غير موجود' : 'Username not found');
             }
         } catch (err: any) {
             console.error('Login error:', err);

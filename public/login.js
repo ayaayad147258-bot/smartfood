@@ -36,32 +36,31 @@ async function handleLogin() {
         // Multi-tenant login: search across all restaurants' users
         const q = query(
             collectionGroup(db, 'users'),
-            where('username', '==', username),
-            where('password', '==', password)
+            where('username', '==', username)
         );
         const querySnapshot = await getDocs(q);
 
         if (!querySnapshot.empty) {
-            const userDoc = querySnapshot.docs[0];
-            const userData = userDoc.data();
+            const userDoc = querySnapshot.docs.find(d => d.data().password === password);
 
-            // Extract restaurantId from path if not in data
-            // Path: restaurants/{restaurantId}/users/{userId}
-            const pathSegments = userDoc.ref.path.split('/');
-            const restaurantId = userData.restaurantId || pathSegments[1];
+            if (userDoc) {
+                const userData = userDoc.data();
+                const pathSegments = userDoc.ref.path.split('/');
+                const restaurantId = userData.restaurantId || pathSegments[1];
 
-            const user = {
-                id: userDoc.id,
-                ...userData,
-                restaurantId
-            };
+                const user = {
+                    id: userDoc.id,
+                    ...userData,
+                    restaurantId
+                };
 
-            localStorage.setItem('pos_user', JSON.stringify(user));
-
-            // Redirect to main application
-            window.location.href = '/';
+                localStorage.setItem('pos_user', JSON.stringify(user));
+                window.location.href = '/';
+            } else {
+                alert('كلمة المرور غير صحيحة');
+            }
         } else {
-            alert('بيانات الدخول غير صحيحة');
+            alert('اسم المستخدم غير موجود');
         }
     } catch (error) {
         console.error('Login error:', error);
