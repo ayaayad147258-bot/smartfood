@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
 export interface RestaurantTheme {
@@ -31,28 +31,49 @@ export function useRestaurant(restaurantId: string | undefined): RestaurantState
 
         setState({ status: 'loading' });
 
+        // Helper to process document data
+        const processData = (snapData: any) => {
+            if (!snapData.active) return null;
+            return {
+                name: snapData.name || 'مطعمنا',
+                logo: snapData.logo || '',
+                active: true,
+                theme: {
+                    primaryColor: snapData.theme?.primaryColor || '#e63946',
+                    secondaryColor: snapData.theme?.secondaryColor || '#ffd700',
+                },
+            };
+        };
+
+        // 1. Try fetching by Document ID first
         getDoc(doc(db, 'restaurants', restaurantId))
-            .then((snap) => {
-                if (!snap.exists()) {
-                    setState({ status: 'not_found' });
-                    return;
+            .then(async (snap) => {
+                if (snap.exists()) {
+                    const fullData = processData(snap.data());
+                    if (fullData) {
+                        setState({ status: 'found', data: fullData });
+                        return;
+                    }
                 }
-                const data = snap.data() as RestaurantData;
-                if (!data.active) {
-                    setState({ status: 'not_found' });
-                    return;
+
+                // 2. If not found by ID, try searching by name_en (slug)
+                const q = query(
+                    collection(db, 'restaurants'),
+                    where('name_en', '==', restaurantId),
+                    where('active', '==', true)
+                );
+                const querySnapshot = await getDocs(q);
+
+                if (!querySnapshot.empty) {
+                    const firstMatch = querySnapshot.docs[0].data();
+                    const fullData = processData(firstMatch);
+                    if (fullData) {
+                        setState({ status: 'found', data: fullData });
+                        return;
+                    }
                 }
-                // Ensure theme defaults
-                const fullData: RestaurantData = {
-                    name: data.name || 'مطعمنا',
-                    logo: data.logo || '',
-                    active: true,
-                    theme: {
-                        primaryColor: data.theme?.primaryColor || '#e63946',
-                        secondaryColor: data.theme?.secondaryColor || '#ffd700',
-                    },
-                };
-                setState({ status: 'found', data: fullData });
+
+                setState({ status: 'not_found' });
             })
             .catch((err) => {
                 console.error('useRestaurant error:', err);
