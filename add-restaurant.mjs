@@ -48,7 +48,7 @@ async function main() {
     console.log("==========================================\n");
 
     const restaurantName = await rl.question("📝 اسم المطعم: ");
-    const restaurantNameEn = await rl.question("📝 اسم المطعم (إنجليزي للرابط): ");
+    const restaurantNameEn = await rl.question("📝 اسم المطعم بالإنجليزي (للرابط - مثلاً: pizzahot): ");
     const adminUsername = await rl.question("👤 اسم المستخدم للأدمن: ");
     const adminPassword = await rl.question("🔑 كلمة المرور للأدمن: ");
 

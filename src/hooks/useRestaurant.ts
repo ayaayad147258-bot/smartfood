@@ -45,7 +45,10 @@ export function useRestaurant(restaurantId: string | undefined): RestaurantState
             };
         };
 
-        // 1. Try fetching by Document ID first
+        // Normalization function for soft matching
+        const normalize = (text: string) => text.toLowerCase().replace(/[\s-]/g, '');
+
+        // 1. Try fetching by Document ID first (Fastest)
         getDoc(doc(db, 'restaurants', restaurantId))
             .then(async (snap) => {
                 if (snap.exists()) {
@@ -56,17 +59,26 @@ export function useRestaurant(restaurantId: string | undefined): RestaurantState
                     }
                 }
 
-                // 2. If not found by ID, try searching by name_en (slug)
+                // 2. If not found by ID, try a "soft match" by fetching all active restaurants
+                // and comparing normalized names. 
+                // Note: This is an efficient fallback for a multi-tenant system with a reasonable 
+                // number of restaurants (under 1000).
                 const q = query(
                     collection(db, 'restaurants'),
-                    where('name_en', '==', restaurantId),
                     where('active', '==', true)
                 );
                 const querySnapshot = await getDocs(q);
 
-                if (!querySnapshot.empty) {
-                    const firstMatch = querySnapshot.docs[0].data();
-                    const fullData = processData(firstMatch);
+                const targetSlug = normalize(restaurantId);
+                const match = querySnapshot.docs.find(doc => {
+                    const data = doc.data();
+                    const nameEn = data.name_en || '';
+                    const nameAr = data.name || '';
+                    return normalize(nameEn) === targetSlug || normalize(nameAr) === targetSlug;
+                });
+
+                if (match) {
+                    const fullData = processData(match.data());
                     if (fullData) {
                         setState({ status: 'found', data: fullData });
                         return;

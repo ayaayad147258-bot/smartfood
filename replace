@@ -1,0 +1,7 @@
+// استخراج الكلمة
+const pathParts = window.location.pathname.split('/');
+
+// تنظيف الكلمة من أي سلاش (/) أو مسافات زيادة
+const currentRestaurantUrl = pathParts[1].replace(/\//g, '').trim(); 
+
+console.log(currentRestaurantUrl); // المفروض دلوقتي تطبع "pizzahot" صافيه
