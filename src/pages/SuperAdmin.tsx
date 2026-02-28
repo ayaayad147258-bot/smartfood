@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
 import {
     getFirestore, collection, getDocs, addDoc, deleteDoc,
-    doc, onSnapshot, setDoc
+    doc, onSnapshot, setDoc, query, where
 } from 'firebase/firestore';
 import { Store, Plus, Trash2, Users, Eye, EyeOff, Copy, Check, LogIn, AlertTriangle, ChefHat } from 'lucide-react';
 
@@ -108,8 +108,8 @@ export const SuperAdmin: React.FC = () => {
                 active: true,
             });
 
-            // Create admin user
-            await addDoc(collection(db, 'restaurants', restaurantId, 'users'), {
+            // Create admin user in central collection
+            await setDoc(doc(db, 'users', adminUser), {
                 username: adminUser,
                 password: adminPass,
                 role: 'admin',

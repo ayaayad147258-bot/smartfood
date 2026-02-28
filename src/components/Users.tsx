@@ -29,7 +29,7 @@
 import React, { useState, useEffect } from 'react';
 import { User as UserIcon, Shield, Plus, Trash2 } from 'lucide-react';
 import { cn } from '../utils';
-import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc, query, where, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import toast from 'react-hot-toast';
 import { useRestaurantId } from '../context/RestaurantContext';
@@ -53,7 +53,8 @@ export const Users: React.FC<UsersProps> = ({ isRtl }) => {
     const fetchUsers = async () => {
         try {
             setLoading(true);
-            const querySnapshot = await getDocs(collection(db, 'restaurants', restaurantId, 'users'));
+            const q = query(collection(db, 'users'), where('restaurantId', '==', restaurantId));
+            const querySnapshot = await getDocs(q);
             const usersData = querySnapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data()
@@ -71,8 +72,9 @@ export const Users: React.FC<UsersProps> = ({ isRtl }) => {
         e.preventDefault();
         if (!newUser.username || !newUser.password) return;
         try {
-            await addDoc(collection(db, 'restaurants', restaurantId, 'users'), {
+            await setDoc(doc(db, 'users', newUser.username), {
                 ...newUser,
+                restaurantId,
                 created_at: new Date().toISOString()
             });
             setNewUser({ username: '', password: '', role: 'cashier' });
@@ -91,7 +93,7 @@ export const Users: React.FC<UsersProps> = ({ isRtl }) => {
         }
         if (!confirm(isRtl ? 'هل أنت متأكد من حذف هذا المستخدم؟' : 'Are you sure you want to delete this user?')) return;
         try {
-            await deleteDoc(doc(db, 'restaurants', restaurantId, 'users', id));
+            await deleteDoc(doc(db, 'users', username));
             fetchUsers();
             toast.success(isRtl ? 'تم الحذف بنجاح' : 'User deleted successfully');
         } catch (err) {
@@ -102,7 +104,7 @@ export const Users: React.FC<UsersProps> = ({ isRtl }) => {
 
     const handleUpdateRole = async (id: string, newRole: string) => {
         try {
-            await updateDoc(doc(db, 'restaurants', restaurantId, 'users', id), { role: newRole });
+            await updateDoc(doc(db, 'users', id), { role: newRole });
             fetchUsers();
             toast.success(isRtl ? 'تم تحديث الصلاحية بنجاح' : 'Role updated successfully');
         } catch (err) {

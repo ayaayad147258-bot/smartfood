@@ -33,25 +33,17 @@ async function handleLogin() {
     loginBtn.innerText = 'جاري التحميل...';
 
     try {
-        // Multi-tenant login: search across all restaurants' users
-        const q = query(
-            collectionGroup(db, 'users'),
-            where('username', '==', username)
-        );
-        const querySnapshot = await getDocs(q);
+        // Multi-tenant login: direct lookup in the central users collection
+        const userRef = doc(db, 'users', username);
+        const userSnap = await getDoc(userRef);
 
-        if (!querySnapshot.empty) {
-            const userDoc = querySnapshot.docs.find(d => d.data().password === password);
+        if (userSnap.exists()) {
+            const userData = userSnap.data();
 
-            if (userDoc) {
-                const userData = userDoc.data();
-                const pathSegments = userDoc.ref.path.split('/');
-                const restaurantId = userData.restaurantId || pathSegments[1];
-
+            if (userData.password === password) {
                 const user = {
-                    id: userDoc.id,
-                    ...userData,
-                    restaurantId
+                    id: userSnap.id,
+                    ...userData
                 };
 
                 localStorage.setItem('pos_user', JSON.stringify(user));

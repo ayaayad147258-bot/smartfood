@@ -73,6 +73,17 @@ async function main() {
         });
         console.log("  ✅ تم إنشاء المطعم في قاعدة البيانات");
 
+        // Create admin user in central collection
+        await setDoc(doc(db, 'users', adminUsername), {
+            username: adminUsername,
+            password: adminPassword,
+            role: 'admin',
+            restaurantId,
+            permissions: ['pos', 'kds', 'inventory', 'reports', 'customers', 'drivers', 'expenses', 'settings'],
+            created_at: new Date().toISOString(),
+        });
+        console.log("  ✅ تم إنشاء المستخدم الأدمن");
+
         // 2. Create admin user inside restaurant
         await addDoc(collection(db, "restaurants", restaurantId, "users"), {
             username: adminUsername,
@@ -82,7 +93,7 @@ async function main() {
             permissions: ["pos", "kds", "inventory", "reports", "customers", "drivers", "expenses", "settings"],
             created_at: new Date().toISOString(),
         });
-        console.log("  ✅ تم إنشاء المستخدم الأدمن");
+        console.log("  ✅ تم إنشاء المستخدم الأدمن في المطعم");
 
         console.log("\n🎉 ========================================");
         console.log("   تم إنشاء المطعم بنجاح!");

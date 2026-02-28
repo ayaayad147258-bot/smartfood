@@ -1,7 +1,15 @@
 import React, { useState } from 'react';
 import { ChefHat, Lock, User, ArrowRight } from 'lucide-react';
 import { cn } from '../utils';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import {
+    collection,
+    query,
+    where,
+    getDocs,
+    collectionGroup,
+    doc,
+    getDoc
+} from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
 interface LoginProps {
@@ -24,22 +32,14 @@ export const Login: React.FC<LoginProps> = ({ isRtl, onLogin }) => {
             // Multi-tenant login: search across all restaurants' users
             // Each user doc has a `restaurantId` field so we know which restaurant they belong to
             // We query the top-level `restaurants` collection, then search sub-collection users
-            // For simplicity + performance: we store restaurantId inside user docs and use collectionGroup query
-            const { collectionGroup } = await import('firebase/firestore');
-            const q = query(
-                collectionGroup(db, 'users'),
-                where('username', '==', username)
-            );
-            const querySnapshot = await getDocs(q);
+            // For simplicity + performance: we store restaurantId inside user docs and use collectionGroup
+            const userRef = doc(db, 'users', username);
+            const userSnap = await getDoc(userRef);
 
-            if (!querySnapshot.empty) {
-                const userDoc = querySnapshot.docs.find(d => d.data().password === password);
-
-                if (userDoc) {
-                    const userData = userDoc.data();
-                    const pathSegments = userDoc.ref.path.split('/');
-                    const restaurantId = userData.restaurantId || pathSegments[1];
-                    const user = { id: userDoc.id, ...userData, restaurantId };
+            if (userSnap.exists()) {
+                const userData = userSnap.data();
+                if (userData.password === password) {
+                    const user = { id: userSnap.id, ...userData };
                     onLogin(user);
                 } else {
                     setError(isRtl ? 'بيانات الدخول غير صحيحة (تحقق من كلمة المرور)' : 'Invalid credentials (check password)');
