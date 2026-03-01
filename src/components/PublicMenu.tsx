@@ -69,12 +69,12 @@ export const PublicMenu: React.FC<PublicMenuProps> = ({ restaurantName: propName
                 setIsLoading(false);
             });
         } else {
-            // Legacy: Global collections for /menu route - these need a default ID or handle differently
-            // In a multi-tenant app, /menu without an ID is ambiguous. 
-            // We'll keep it as a fallback but suggest using /:restaurantId
+            // No restaurantId provided. In a multi-tenant app, we should probably 
+            // show nothing or an error instead of trying to read global collections.
             unsubCats = () => { };
             unsubProds = () => { };
             setIsLoading(false);
+            toast.error('Restaurant ID missing');
         }
 
         return () => {
@@ -180,13 +180,17 @@ export const PublicMenu: React.FC<PublicMenuProps> = ({ restaurantName: propName
 
             const ordersCol = restaurantId
                 ? collection(db, 'restaurants', restaurantId, 'online_orders')
-                : collection(db, 'online_orders');
+                : null;
 
-            await addDoc(ordersCol, newOrder);
+            if (ordersCol) {
+                await addDoc(ordersCol, newOrder);
+            } else {
+                throw new Error('Restaurant ID missing');
+            }
 
             // 2. Save/Update Customer internally for marketing
             const phoneId = customerPhone.replace(/\D/g, '');
-            if (phoneId) {
+            if (phoneId && restaurantId) {
                 const custData: any = {
                     name: customerName,
                     phone: customerPhone,
@@ -197,10 +201,7 @@ export const PublicMenu: React.FC<PublicMenuProps> = ({ restaurantName: propName
                 else custData.whatsapp = customerPhone;
                 if (customerBirthday) custData.birthday = customerBirthday;
 
-                const customerDoc = restaurantId
-                    ? doc(db, 'restaurants', restaurantId, 'customers', phoneId)
-                    : doc(db, 'customers', phoneId);
-
+                const customerDoc = doc(db, 'restaurants', restaurantId, 'customers', phoneId);
                 await setDoc(customerDoc, custData, { merge: true });
             }
 

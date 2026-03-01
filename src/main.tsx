@@ -22,10 +22,12 @@ createRoot(document.getElementById('root')!).render(
         */}
 
         {/* Multi-tenant restaurant route: /:restaurantId */}
+        <Route path="/:restaurantId/admin" element={<App />} />
         <Route path="/:restaurantId" element={<RestaurantMenuPage />} />
 
         {/* Admin Panel Root */}
         <Route path="/" element={<App />} />
+
 
         {/* Catch-all 404 */}
         <Route path="*" element={<NotFound />} />

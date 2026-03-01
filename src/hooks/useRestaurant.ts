@@ -8,6 +8,7 @@ export interface RestaurantTheme {
 }
 
 export interface RestaurantData {
+    id?: string;
     name: string;
     logo: string;
     active: boolean;
@@ -29,68 +30,62 @@ export function useRestaurant(restaurantId: string | undefined): RestaurantState
             return;
         }
 
-        setState({ status: 'loading' });
+        const fetchRestaurant = async () => {
+            setState({ status: 'loading' });
+            try {
+                // 1. Try finding by ID directly (legacy/technical IDs)
+                const docRef = doc(db, 'restaurants', restaurantId);
+                const docSnap = await getDoc(docRef);
 
-        // Helper to process document data
-        const processData = (snapData: any) => {
-            if (!snapData.active) return null;
-            return {
-                name: snapData.name || 'مطعمنا',
-                logo: snapData.logo || '',
-                active: true,
-                theme: {
-                    primaryColor: snapData.theme?.primaryColor || '#e63946',
-                    secondaryColor: snapData.theme?.secondaryColor || '#ffd700',
-                },
-            };
-        };
-
-        // Normalization function for soft matching
-        const normalize = (text: string) => text.toLowerCase().replace(/[\s-]/g, '');
-
-        // 1. Try fetching by Document ID first (Fastest)
-        getDoc(doc(db, 'restaurants', restaurantId))
-            .then(async (snap) => {
-                if (snap.exists()) {
-                    const fullData = processData(snap.data());
-                    if (fullData) {
-                        setState({ status: 'found', data: fullData });
-                        return;
-                    }
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    setState({
+                        status: 'found',
+                        data: {
+                            id: docSnap.id,
+                            name: data.name || 'مطعمنا',
+                            logo: data.logo || '',
+                            active: data.active ?? true,
+                            theme: {
+                                primaryColor: data.theme?.primaryColor || '#e63946',
+                                secondaryColor: data.theme?.secondaryColor || '#ffd700',
+                            },
+                        }
+                    });
+                    return;
                 }
 
-                // 2. If not found by ID, try a "soft match" by fetching all active restaurants
-                // and comparing normalized names. 
-                // Note: This is an efficient fallback for a multi-tenant system with a reasonable 
-                // number of restaurants (under 1000).
-                const q = query(
-                    collection(db, 'restaurants'),
-                    where('active', '==', true)
-                );
-                const querySnapshot = await getDocs(q);
+                // 2. Try finding by SLUG field (modern/clean URLs)
+                const q = query(collection(db, 'restaurants'), where('slug', '==', restaurantId));
+                const querySnap = await getDocs(q);
 
-                const targetSlug = normalize(restaurantId);
-                const match = querySnapshot.docs.find(doc => {
-                    const data = doc.data();
-                    const nameEn = data.name_en || '';
-                    const nameAr = data.name || '';
-                    return normalize(nameEn) === targetSlug || normalize(nameAr) === targetSlug;
-                });
-
-                if (match) {
-                    const fullData = processData(match.data());
-                    if (fullData) {
-                        setState({ status: 'found', data: fullData });
-                        return;
-                    }
+                if (!querySnap.empty) {
+                    const resDoc = querySnap.docs[0];
+                    const data = resDoc.data();
+                    setState({
+                        status: 'found',
+                        data: {
+                            id: resDoc.id,
+                            name: data.name || 'مطعمنا',
+                            logo: data.logo || '',
+                            active: data.active ?? true,
+                            theme: {
+                                primaryColor: data.theme?.primaryColor || '#e63946',
+                                secondaryColor: data.theme?.secondaryColor || '#ffd700',
+                            },
+                        }
+                    });
+                    return;
                 }
 
                 setState({ status: 'not_found' });
-            })
-            .catch((err) => {
-                console.error('useRestaurant error:', err);
-                setState({ status: 'error', message: err.message });
-            });
+            } catch (err: any) {
+                console.error('Restaurant fetch error:', err);
+                setState({ status: 'error', message: err.message || 'Error loading restaurant' });
+            }
+        };
+
+        fetchRestaurant();
     }, [restaurantId]);
 
     return state;

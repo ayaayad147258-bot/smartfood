@@ -14,6 +14,7 @@ import { OnlineOrders } from './components/OnlineOrders';
 import { User } from './types';
 import { cn, checkAccess } from './utils';
 import { Toaster } from 'react-hot-toast';
+import { useParams, useNavigate } from 'react-router-dom';
 import { RestaurantProvider, useRestaurantSettings } from './context/RestaurantContext';
 
 const TitleUpdater = () => {
@@ -25,6 +26,7 @@ const TitleUpdater = () => {
 };
 
 export default function App() {
+  const { restaurantId: urlRestaurantId } = useParams();
   const [activeTab, setActiveTab] = useState('pos');
   const [isRtl, setIsRtl] = useState(true);
 
@@ -39,11 +41,19 @@ export default function App() {
     document.documentElement.lang = isRtl ? 'ar' : 'en';
   }, [isRtl]);
 
+  const navigate = useNavigate();
 
-
-  const handleLogin = (loggedInUser: User) => {
+  const handleLogin = (loggedInUser: User, restaurantData?: any) => {
     setUser(loggedInUser);
     localStorage.setItem('pos_user', JSON.stringify(loggedInUser));
+
+    // Determine the path segment (slug or ID)
+    const restaurantPathId = restaurantData?.slug || restaurantData?.id || loggedInUser.restaurantId;
+
+    // Redirect to the professional branded URL
+    if (restaurantPathId) {
+      navigate(`/${restaurantPathId}/admin`);
+    }
 
     // Default tab based on role
     if (loggedInUser.role === 'admin') {
@@ -53,14 +63,16 @@ export default function App() {
     }
   };
 
+
   const handleLogout = () => {
     setUser(null);
     localStorage.removeItem('pos_user');
   };
 
   if (!user) {
-    return <Login isRtl={isRtl} onLogin={handleLogin} />;
+    return <Login isRtl={isRtl} onLogin={handleLogin} restrictedRestaurantId={urlRestaurantId} />;
   }
+
 
   // restaurantId is stored on every user document
   const restaurantId = user.restaurantId;

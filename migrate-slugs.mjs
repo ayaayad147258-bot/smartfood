@@ -13,26 +13,30 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-function toSlug(text) {
-    if (!text) return "";
-    return text
+function makeSlug(name) {
+    return name
         .toLowerCase()
-        .replace(/\s+/g, '') // Remove spaces
-        .replace(/[^a-z0-9]/g, ""); // Keep only alphanumeric
+        .replace(/[^\w\s-]/g, '') // remove non-word chars
+        .trim()
+        .replace(/\s+/g, '-') // spaces to hyphens
+        .replace(/-+/g, '-'); // collapse hyphens
 }
 
 async function migrate() {
-    console.log("Starting migration...");
-    const querySnapshot = await getDocs(collection(db, "restaurants"));
-    for (const d of querySnapshot.docs) {
+    console.log("--- MIGRATING SLUGS ---");
+    const snap = await getDocs(collection(db, "restaurants"));
+    for (const d of snap.docs) {
         const data = d.data();
-        const slug = toSlug(data.name_en || data.name);
-        if (slug) {
-            await updateDoc(doc(db, "restaurants", d.id), { slug });
-            console.log(`Updated ${d.id} | Name: ${data.name} | Slug: ${slug}`);
-        }
+        let slug = "";
+
+        if (d.id === "-sol--mm5g4uv7") slug = "sultan";
+        else if (d.id === "--mm5hu4nx") slug = "pizza-hot";
+        else slug = makeSlug(data.name_en || data.name);
+
+        console.log(`Restaurant: ${data.name} | New Slug: ${slug}`);
+        await updateDoc(doc(db, "restaurants", d.id), { slug });
     }
-    console.log("Migration finished.");
+    console.log("--- DONE ---");
 }
 
 migrate();

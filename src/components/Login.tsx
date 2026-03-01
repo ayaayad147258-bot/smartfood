@@ -12,12 +12,16 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
+import { useRestaurant } from '../hooks/useRestaurant';
+
 interface LoginProps {
     isRtl: boolean;
-    onLogin: (user: any) => void;
+    onLogin: (user: any, restaurantData?: any) => void;
+    restrictedRestaurantId?: string;
 }
 
-export const Login: React.FC<LoginProps> = ({ isRtl, onLogin }) => {
+export const Login: React.FC<LoginProps> = ({ isRtl, onLogin, restrictedRestaurantId }) => {
+    const restaurant = useRestaurant(restrictedRestaurantId);
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
@@ -29,18 +33,73 @@ export const Login: React.FC<LoginProps> = ({ isRtl, onLogin }) => {
         setError('');
 
         try {
-            // Multi-tenant login: search across all restaurants' users
-            // Each user doc has a `restaurantId` field so we know which restaurant they belong to
-            // We query the top-level `restaurants` collection, then search sub-collection users
-            // For simplicity + performance: we store restaurantId inside user docs and use collectionGroup
-            const userRef = doc(db, 'users', username);
-            const userSnap = await getDoc(userRef);
+            let userData: any = null;
+            let finalRestaurantId: string | null = null;
 
-            if (userSnap.exists()) {
-                const userData = userSnap.data();
+            // 1. Resolve which restaurant we're logging into
+            // If on a branded URL, we already know the target (via slug or ID resolution)
+            const resolvedRestaurantId = restaurant.status === 'found' ? restaurant.data.id : restrictedRestaurantId;
+
+            if (resolvedRestaurantId) {
+                // BRANDED LOGIN: Search ONLY within this restaurant's sub-collection
+                // This allows 'admin' to exist in every restaurant separately.
+                const userQ = query(
+                    collection(db, 'restaurants', resolvedRestaurantId, 'users'),
+                    where('username', '==', username)
+                );
+                const userSnap = await getDocs(userQ);
+                if (!userSnap.empty) {
+                    userData = { id: userSnap.docs[0].id, ...userSnap.docs[0].data() };
+                    finalRestaurantId = resolvedRestaurantId;
+                }
+            } else {
+                // GENERAL LOGIN: Search across all users using top-level mapping
+                // We search by the field 'username'
+                const userQ = query(
+                    collection(db, 'users'),
+                    where('username', '==', username)
+                );
+                const userSnap = await getDocs(userQ);
+
+                if (userSnap.empty) {
+                    setError(isRtl ? 'اسم المستخدم غير موجود' : 'Username not found');
+                    setIsLoading(false);
+                    return;
+                }
+
+                // If multiple users have the same name globally, we need more info.
+                if (userSnap.size > 1) {
+                    setError(isRtl
+                        ? 'يوجد أكثر من مستخدم بهذا الاسم. يرجى الدخول عبر رابط المطعم المخصص.'
+                        : 'Multiple users found. Please use your branded restaurant link.');
+                    setIsLoading(false);
+                    return;
+                }
+
+                userData = { id: userSnap.docs[0].id, ...userSnap.docs[0].data() };
+                finalRestaurantId = userData.restaurantId;
+            }
+
+            if (userData) {
                 if (userData.password === password) {
-                    const user = { id: userSnap.id, ...userData };
-                    onLogin(user);
+                    const user = { ...userData };
+
+                    // Fetch restaurant data for redirection if not already available
+                    let finalRestaurantData = restaurant.status === 'found' ? restaurant.data : null;
+
+                    if (!finalRestaurantData && finalRestaurantId) {
+                        try {
+                            const resRef = doc(db, 'restaurants', finalRestaurantId);
+                            const resSnap = await getDoc(resRef);
+                            if (resSnap.exists()) {
+                                finalRestaurantData = { id: resSnap.id, ...resSnap.data() } as any;
+                            }
+                        } catch (resErr) {
+                            console.error('Failed to fetch restaurant data for redirect:', resErr);
+                        }
+                    }
+
+                    onLogin(user, finalRestaurantData);
                 } else {
                     setError(isRtl ? 'بيانات الدخول غير صحيحة (تحقق من كلمة المرور)' : 'Invalid credentials (check password)');
                 }
@@ -55,6 +114,24 @@ export const Login: React.FC<LoginProps> = ({ isRtl, onLogin }) => {
         }
     };
 
+
+    if (restrictedRestaurantId && restaurant.status === 'loading') {
+        return (
+            <div className="min-h-screen w-full flex items-center justify-center bg-slate-50">
+                <div className="w-12 h-12 border-4 border-slate-200 border-t-brand-600 rounded-full animate-spin" />
+            </div>
+        );
+    }
+
+    if (restrictedRestaurantId && restaurant.status === 'not_found') {
+        return (
+            <div className="min-h-screen w-full flex items-center justify-center bg-slate-50 flex-col gap-4">
+                <p className="text-slate-500 font-bold">{isRtl ? 'المطعم غير موجود' : 'Restaurant not found'}</p>
+                <a href="/login" className="text-brand-600 font-bold underline">{isRtl ? 'الذهاب لصفحة الدخول العامة' : 'Go to general login'}</a>
+            </div>
+        );
+    }
+
     return (
         <div className={cn(
             "min-h-screen w-full flex bg-slate-50",
@@ -64,14 +141,20 @@ export const Login: React.FC<LoginProps> = ({ isRtl, onLogin }) => {
             <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-white shadow-2xl z-10">
                 <div className="w-full max-w-md space-y-8">
                     <div className="text-center">
-                        <div className="w-20 h-20 bg-brand-50 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-sm border border-brand-100">
-                            <ChefHat size={40} className="text-brand-600" />
+                        <div className="w-20 h-20 bg-brand-50 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-sm border border-brand-100 overflow-hidden">
+                            {restaurant.status === 'found' && restaurant.data.logo ? (
+                                <img src={restaurant.data.logo} alt={restaurant.data.name} className="w-full h-full object-cover" />
+                            ) : (
+                                <ChefHat size={40} className="text-brand-600" />
+                            )}
                         </div>
                         <h1 className="text-4xl font-black text-slate-800 tracking-tight">
-                            {isRtl ? 'مرحباً بعودتك' : 'Welcome Back'}
+                            {restaurant.status === 'found' ? restaurant.data.name : (isRtl ? 'مرحباً بعودتك' : 'Welcome Back')}
                         </h1>
                         <p className="text-slate-500 mt-3 font-medium">
-                            {isRtl ? 'تسجيل الدخول لنظام إدارة المطعم' : 'Login to restaurant management system'}
+                            {restaurant.status === 'found'
+                                ? (isRtl ? `تسجيل الدخول إلى ${restaurant.data.name}` : `Login to ${restaurant.data.name}`)
+                                : (isRtl ? 'تسجيل الدخول لنظام إدارة المطعم' : 'Login to restaurant management system')}
                         </p>
                     </div>
 

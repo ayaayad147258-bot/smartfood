@@ -31,6 +31,16 @@ function makeRestaurantId(name: string) {
     return `${slug}-${Date.now().toString(36)}`;
 }
 
+function makeSlug(name: string) {
+    return name
+        .toLowerCase()
+        .replace(/[^\w\s-]/g, '') // remove non-word chars
+        .trim()
+        .replace(/\s+/g, '-') // spaces to hyphens
+        .replace(/-+/g, '-'); // collapse hyphens
+}
+
+
 interface Restaurant {
     id: string;
     name: string;
@@ -104,9 +114,11 @@ export const SuperAdmin: React.FC = () => {
             await setDoc(doc(db, 'restaurants', restaurantId), {
                 name: nameAr,
                 name_en: nameEn || nameAr,
+                slug: makeSlug(nameEn || nameAr),
                 created_at: new Date().toISOString(),
                 active: true,
             });
+
 
             // Create admin user in central collection
             await setDoc(doc(db, 'users', adminUser), {

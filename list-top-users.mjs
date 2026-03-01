@@ -1,0 +1,29 @@
+import { initializeApp } from "firebase/app";
+import { getFirestore, collection, getDocs } from "firebase/firestore";
+
+const firebaseConfig = {
+    apiKey: "AIzaSyBkieBAwbbRe6iDAs-kqD28L8D7qkfJD6k",
+    authDomain: "crepree.firebaseapp.com",
+    projectId: "crepree",
+    storageBucket: "crepree.firebasestorage.app",
+    messagingSenderId: "136152032204",
+    appId: "1:136152032204:web:e28ccbfd225f44953a3369",
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const listTopUsers = async () => {
+    console.log("--- LISTING TOP LEVEL USERS ---");
+    try {
+        const snap = await getDocs(collection(db, 'users'));
+        snap.forEach(doc => {
+            console.log(`User: ${doc.id} | Data:`, doc.data());
+        });
+        if (snap.empty) console.log("No top-level users found.");
+    } catch (e) {
+        console.error("Error:", e.message);
+    }
+};
+
+listTopUsers();

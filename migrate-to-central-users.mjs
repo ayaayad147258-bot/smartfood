@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getFirestore, collection, getDocs, doc, setDoc } from "firebase/firestore";
+import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc } from "firebase/firestore";
 
 const firebaseConfig = {
     apiKey: "AIzaSyBkieBAwbbRe6iDAs-kqD28L8D7qkfJD6k",
@@ -13,43 +13,32 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-async function migrate() {
-    console.log("--- STARTING USER MIGRATION ---");
-    try {
-        const restaurantsSnap = await getDocs(collection(db, "restaurants"));
-        let count = 0;
+const migrate = async () => {
+    console.log("--- MIGRATING TO COMPOSITE CENTRAL IDS ---");
+    const snap = await getDocs(collection(db, "users"));
 
-        for (const resDoc of restaurantsSnap.docs) {
-            const restaurantId = resDoc.id;
-            console.log(`Processing restaurant: ${restaurantId}`);
+    for (const d of snap.docs) {
+        const data = d.data();
+        const oldId = d.id;
 
-            const usersSnap = await getDocs(collection(db, "restaurants", restaurantId, "users"));
-
-            for (const userDoc of usersSnap.docs) {
-                const userData = userDoc.data();
-                const username = userData.username;
-
-                if (!username) {
-                    console.log(`  ! Skipping user with no username (ID: ${userDoc.id})`);
-                    continue;
-                }
-
-                // Write to top-level users collection
-                // Document ID is the username for direct lookup
-                await setDoc(doc(db, "users", username), {
-                    ...userData,
-                    restaurantId: restaurantId, // Ensure restaurantId is always present
-                    migrated_at: new Date().toISOString()
-                });
-
-                console.log(`  > Migrated: ${username} (Restaurant: ${restaurantId})`);
-                count++;
-            }
+        // Skip if already in composite format (contains underscore)
+        if (oldId.includes("_") && oldId.split("_")[0] === data.restaurantId) {
+            console.log(`Skipping already migrated user: ${oldId}`);
+            continue;
         }
-        console.log(`--- MIGRATION FINISHED: ${count} users migrated ---`);
-    } catch (e) {
-        console.error("MIGRATION ERROR:", e.message);
+
+        const newId = `${data.restaurantId}_${data.username}`;
+        console.log(`Migrating ${oldId} -> ${newId}`);
+
+        await setDoc(doc(db, "users", newId), data);
+
+        // Only delete the old one if the ID was just the username
+        if (oldId === data.username) {
+            await deleteDoc(doc(db, "users", oldId));
+            console.log(`Deleted old ID: ${oldId}`);
+        }
     }
-}
+    console.log("--- DONE ---");
+};
 
 migrate();

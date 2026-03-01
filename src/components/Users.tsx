@@ -29,10 +29,16 @@
 import React, { useState, useEffect } from 'react';
 import { User as UserIcon, Shield, Plus, Trash2 } from 'lucide-react';
 import { cn } from '../utils';
-import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc, query, where, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import toast from 'react-hot-toast';
 import { useRestaurantId } from '../context/RestaurantContext';
+import {
+    listenToRestaurantUsers,
+    addRestaurantUser,
+    deleteRestaurantUser,
+    updateRestaurantUser
+} from '../services/db';
+import { doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 
 interface UsersProps {
     isRtl: boolean;
@@ -46,45 +52,57 @@ export const Users: React.FC<UsersProps> = ({ isRtl }) => {
 
     useEffect(() => {
         if (restaurantId) {
-            fetchUsers();
+            const unsub = listenToRestaurantUsers(restaurantId, (data) => {
+                setUsers(data);
+                setLoading(false);
+            });
+            return () => unsub();
         }
     }, [restaurantId]);
 
-    const fetchUsers = async () => {
-        try {
-            setLoading(true);
-            const q = query(collection(db, 'users'), where('restaurantId', '==', restaurantId));
-            const querySnapshot = await getDocs(q);
-            const usersData = querySnapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            }));
-            setUsers(usersData);
-        } catch (err) {
-            console.error(err);
-            toast.error(isRtl ? 'فشل في تحميل المستخدمين' : 'Failed to load users');
-        } finally {
-            setLoading(false);
-        }
-    };
+    // Note: fetchUsers is no longer needed since we use real-time listeners
+    const fetchUsers = () => { };
 
     const handleAddUser = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!newUser.username || !newUser.password) return;
         try {
-            await setDoc(doc(db, 'users', newUser.username), {
+            // Determine default permissions based on role
+            let permissions: string[] = [];
+            if (newUser.role === 'admin') {
+                permissions = ['pos', 'online_orders', 'kds', 'dashboard', 'inventory', 'customers', 'drivers', 'expenses', 'reports', 'settings'];
+            } else if (newUser.role === 'cashier') {
+                permissions = ['pos', 'online_orders', 'kds', 'expenses'];
+            } else if (newUser.role === 'assistant') {
+                permissions = ['pos', 'kds'];
+            }
+
+            const userData = {
                 ...newUser,
+                permissions,
                 restaurantId,
                 created_at: new Date().toISOString()
-            });
+            };
+
+            // 1. Add to restaurant sub-collection
+            await addRestaurantUser(restaurantId, userData);
+
+            // 2. Also update central users for login mapping (using composite ID)
+            try {
+                const centralId = `${restaurantId}_${newUser.username}`;
+                await setDoc(doc(db, 'users', centralId), userData);
+            } catch (centralErr) {
+                console.warn('Could not update central user mapping:', centralErr);
+            }
+
             setNewUser({ username: '', password: '', role: 'cashier' });
-            fetchUsers();
             toast.success(isRtl ? 'تم إضافة المستخدم بنجاح' : 'User added successfully');
         } catch (err) {
             console.error(err);
             toast.error(isRtl ? 'فشل في إضافة المستخدم' : 'Failed to add user');
         }
     };
+
 
     const handleDeleteUser = async (id: string, username: string) => {
         if (username === 'admin') {
@@ -93,8 +111,17 @@ export const Users: React.FC<UsersProps> = ({ isRtl }) => {
         }
         if (!confirm(isRtl ? 'هل أنت متأكد من حذف هذا المستخدم؟' : 'Are you sure you want to delete this user?')) return;
         try {
-            await deleteDoc(doc(db, 'users', username));
-            fetchUsers();
+            // 1. Delete from restaurant sub-collection
+            await deleteRestaurantUser(restaurantId, id);
+
+            // 2. Delete from central mapping (using composite ID)
+            try {
+                const centralId = `${restaurantId}_${username}`;
+                await deleteDoc(doc(db, 'users', centralId));
+            } catch (centralErr) {
+                console.warn('Could not delete central user mapping:', centralErr);
+            }
+
             toast.success(isRtl ? 'تم الحذف بنجاح' : 'User deleted successfully');
         } catch (err) {
             console.error(err);
@@ -102,10 +129,19 @@ export const Users: React.FC<UsersProps> = ({ isRtl }) => {
         }
     };
 
-    const handleUpdateRole = async (id: string, newRole: string) => {
+    const handleUpdateRole = async (id: string, newRole: string, username: string) => {
         try {
-            await updateDoc(doc(db, 'users', id), { role: newRole });
-            fetchUsers();
+            // 1. Update restaurant sub-collection
+            await updateRestaurantUser(restaurantId, id, { role: newRole });
+
+            // 2. Update central mapping (using composite ID)
+            try {
+                const centralId = `${restaurantId}_${username}`;
+                await updateDoc(doc(db, 'users', centralId), { role: newRole });
+            } catch (centralErr) {
+                console.warn('Could not update central user role:', centralErr);
+            }
+
             toast.success(isRtl ? 'تم تحديث الصلاحية بنجاح' : 'Role updated successfully');
         } catch (err) {
             console.error(err);
@@ -156,8 +192,9 @@ export const Users: React.FC<UsersProps> = ({ isRtl }) => {
                                     value={newUser.role}
                                     onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
                                 >
-                                    <option value="admin">{isRtl ? 'مدير' : 'Admin'}</option>
                                     <option value="cashier">{isRtl ? 'كاشير' : 'Cashier'}</option>
+                                    <option value="admin">{isRtl ? 'مدير' : 'Admin'}</option>
+                                    <option value="assistant">{isRtl ? 'مساعد' : 'Assistant'}</option>
                                 </select>
                             </div>
                         </div>
@@ -192,7 +229,7 @@ export const Users: React.FC<UsersProps> = ({ isRtl }) => {
                                         <div className="flex items-center gap-3">
                                             <select
                                                 value={user.role}
-                                                onChange={(e) => handleUpdateRole(user.id, e.target.value)}
+                                                onChange={(e) => handleUpdateRole(user.id, e.target.value, user.username)}
                                                 className={cn(
                                                     "px-3 py-1.5 border border-slate-200 rounded-lg text-sm font-bold focus:ring-2 focus:ring-brand-500/20 cursor-pointer",
                                                     user.role === 'admin' ? "bg-amber-50 text-amber-700" : "bg-blue-50 text-blue-700"
@@ -200,6 +237,7 @@ export const Users: React.FC<UsersProps> = ({ isRtl }) => {
                                             >
                                                 <option value="admin">{isRtl ? 'مدير' : 'Admin'}</option>
                                                 <option value="cashier">{isRtl ? 'كاشير' : 'Cashier'}</option>
+                                                <option value="assistant">{isRtl ? 'مساعد' : 'Assistant'}</option>
                                             </select>
                                             <button
                                                 onClick={() => handleDeleteUser(user.id, user.username)}
