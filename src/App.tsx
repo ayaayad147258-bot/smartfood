@@ -52,7 +52,7 @@ export default function App() {
 
     // Redirect to the professional branded URL
     if (restaurantPathId) {
-      navigate(`/${restaurantPathId}/admin`);
+      navigate(`/${restaurantPathId}/login`);
     }
 
     // Default tab based on role

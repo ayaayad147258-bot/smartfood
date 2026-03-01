@@ -260,7 +260,7 @@ export const PublicMenu: React.FC<PublicMenuProps> = ({ restaurantName: propName
                     </div>
                     <div className="flex items-center gap-4">
                         <a
-                            href={`${window.location.origin}${window.location.pathname.replace(/\/$/, '')}/admin`}
+                            href={`${window.location.origin}${window.location.pathname.replace(/\/$/, '')}/login`}
                             className="text-xs font-bold text-slate-400 hover:text-brand-600 transition-colors flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-brand-50"
                         >
                             <User size={14} />

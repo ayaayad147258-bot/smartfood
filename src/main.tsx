@@ -22,6 +22,7 @@ createRoot(document.getElementById('root')!).render(
         */}
 
         {/* Multi-tenant restaurant route: /:restaurantId */}
+        <Route path="/:restaurantId/login" element={<App />} />
         <Route path="/:restaurantId/admin" element={<App />} />
         <Route path="/:restaurantId" element={<RestaurantMenuPage />} />
 
