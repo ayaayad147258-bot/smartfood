@@ -258,17 +258,26 @@ export const PublicMenu: React.FC<PublicMenuProps> = ({ restaurantName: propName
                         )}
                         <h1 className="text-xl font-bold text-slate-800">{restaurantName}</h1>
                     </div>
-                    <button
-                        onClick={() => setIsCartOpen(true)}
-                        className="relative p-2 text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
-                    >
-                        <ShoppingCart size={24} />
-                        {cart.length > 0 && (
-                            <span className="absolute top-0 right-0 w-5 h-5 bg-brand-600 text-white text-xs font-bold flex items-center justify-center rounded-full transform translate-x-1/4 -translate-y-1/4">
-                                {cart.reduce((sum, item) => sum + item.quantity, 0)}
-                            </span>
-                        )}
-                    </button>
+                    <div className="flex items-center gap-4">
+                        <a
+                            href={`${window.location.origin}${window.location.pathname.replace(/\/$/, '')}/admin`}
+                            className="text-xs font-bold text-slate-400 hover:text-brand-600 transition-colors flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-brand-50"
+                        >
+                            <User size={14} />
+                            دخول الموظفين
+                        </a>
+                        <button
+                            onClick={() => setIsCartOpen(true)}
+                            className="relative p-2 text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
+                        >
+                            <ShoppingCart size={24} />
+                            {cart.length > 0 && (
+                                <span className="absolute top-0 right-0 w-5 h-5 bg-brand-600 text-white text-xs font-bold flex items-center justify-center rounded-full transform translate-x-1/4 -translate-y-1/4">
+                                    {cart.reduce((sum, item) => sum + item.quantity, 0)}
+                                </span>
+                            )}
+                        </button>
+                    </div>
                 </div>
 
                 {/* Categories */}
